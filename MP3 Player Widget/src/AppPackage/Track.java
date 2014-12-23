@@ -4,49 +4,51 @@
  */
 package AppPackage;
 
+import java.io.Serializable;
+
 /**
  *
  * @author razvan.milea
  */
-public class Track 
+public class Track implements Serializable
 {
 
-    private String songname;
-    private String artist;
-    private int songLength;
-    private String songPath;
+    private String mSongName;
+    private String mArtist;
+    private int mSongLength;
+    private String mSongPath;
     
     public Track(String songname, String artist, int songLength, String songPath)
     {
-        this.songname = songname;
-        this.artist = artist;
-        this.songPath = songPath;
-        this.songLength = songLength;
+        this.mSongName = songname;
+        this.mArtist = artist;
+        this.mSongPath = songPath;
+        this.mSongLength = songLength;
     }
     
     public String getSongName()
     {
-        return songname;
+        return mSongName;
     }
     
     public String getArtist()
     {
-        return artist;
+        return mArtist;
     }
 
     public String getSongPath()
     {
-        return songPath;
+        return mSongPath;
     }
 
     
     @Override
     public String toString() {
-        return artist + " - " + songname; 
+        return mArtist + " - " + mSongName; 
     }
 
     public int getSongLength() {
-        return songLength;
+        return mSongLength;
     }
     
 }

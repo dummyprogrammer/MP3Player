@@ -3,24 +3,30 @@ package AppPackage;
 //All code is added to create the widget. Follow the "Create a Widget" tutorial if you want to know how I did it.
 
 import com.mpatric.mp3agic.ID3v1;
-import com.mpatric.mp3agic.ID3v2;
 import com.mpatric.mp3agic.InvalidDataException;
 import com.mpatric.mp3agic.Mp3File;
 import com.mpatric.mp3agic.UnsupportedTagException;
-import ddf.minim.AudioMetaData;
-import ddf.minim.AudioPlayer;
-import ddf.minim.Minim;
 import java.awt.Component;
 import java.awt.Font;
 import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.logging.Level;
@@ -34,39 +40,38 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 
 public final class MP3PlayerGUI extends javax.swing.JDialog 
 {
-    MainClass MC = new MainClass();
+    TrackPlayer mTrackPlayer = new TrackPlayer();
     
-    private TracksModel modelTracks = new TracksModel();
-    //private String songTitle;
-    //private String artist;
-    //private String songPath;
-    //private int songLength = 0;
-    private String tracklistInfo;
+    private TracksModel mTracksModel;
+
+    private String mTrackListInfo;
     
-    private int minutes;
-    private int seconds;
+    
     private Track mPlayingTrack;
     
-    private boolean isSeekerTimerRunning = false;
-    private Timer seeker;
-    private int trackPlayingTime = 0;
+    private boolean mIsSeekerTimerRunning = false;
+    private Timer mSeekerTimer;
+    private int mMinutes;
+    private int mSeconds;
+    private int mTrackPlayingTime = 0;
     
-    private int playingTrackIndex = -1;
+    private int mPlayingTrackIndex = -1;
     
-    private int xMouse;
-    private int yMouse;
+    private int mDragStartX;
+    private int mDragStartY;
     
-    private int width = (Toolkit.getDefaultToolkit().getScreenSize().width / 2) - 185;
-    private int height = (Toolkit.getDefaultToolkit().getScreenSize().height / 2) - 185;
+    private int mWindowInitialX = (Toolkit.getDefaultToolkit().getScreenSize().width / 2) - 185;
+    private int mWindowInitialY = (Toolkit.getDefaultToolkit().getScreenSize().height / 2) - 185;
     
     public MP3PlayerGUI(java.awt.Frame parent, boolean modal) 
     {
         super(parent, modal);
+        
         initComponents();
-        this.setLocation(width, height);
+        this.setLocation(mWindowInitialX, mWindowInitialY);
         InitPlaylistRenderer();
-        Playlist.setModel(modelTracks);
         LoadPlaylistTracks();
+        Playlist.setModel(mTracksModel);
     }
 
     private void InitPlaylistRenderer()
@@ -83,7 +88,7 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
                 //System.out.println("getListCellRendererComponent() index " + index);
                 
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (index == playingTrackIndex) 
+                if (index == mPlayingTrackIndex) 
                 {
                     setFont(list.getFont().deriveFont(Font.BOLD));
                 }
@@ -209,22 +214,22 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
         int x = evt.getXOnScreen();
         int y = evt.getYOnScreen();
         
-        this.setLocation(x - xMouse, y - yMouse);
+        this.setLocation(x - mDragStartX, y - mDragStartY);
     }//GEN-LAST:event_BackgroundMouseDragged
 
     public void RemoveElementJlist()
     {
         int index = Playlist.getSelectedIndex();
-        modelTracks.removeTrack(index);
+        mTracksModel.removeTrack(index);
     }
     
     private void HighlightTrack(int trackIndex)
     {
         System.out.println("highlightTrack() trackIndex " + trackIndex);
         
-        if(playingTrackIndex != trackIndex)
+        if(mPlayingTrackIndex != trackIndex)
         {
-            playingTrackIndex = trackIndex;
+            mPlayingTrackIndex = trackIndex;
             Playlist.repaint();
         }
     }
@@ -232,22 +237,22 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
     public void ConvertSongLength()
     {
         int songLength = mPlayingTrack.getSongLength();
-        minutes = songLength / 60;
-        seconds = songLength - (minutes * 60);
-        System.out.println("Durata melodiei este " + minutes + ":" +seconds);
+        mMinutes = songLength / 60;
+        mSeconds = songLength - (mMinutes * 60);
+        System.out.println("Durata melodiei este " + mMinutes + ":" +mSeconds);
     }
     
     public void ConfigureSeekBar() 
     {
-        if(seeker != null)
+        if(mSeekerTimer != null)
         {
-            if(isSeekerTimerRunning)
+            if(mIsSeekerTimerRunning)
             {
-                seeker.cancel();
-                isSeekerTimerRunning = false;
+                mSeekerTimer.cancel();
+                mIsSeekerTimerRunning = false;
             }
         }
-        seeker = new Timer();
+        mSeekerTimer = new Timer();
         
         int songLength = mPlayingTrack.getSongLength();
         SeekBar.setMinimum(0);
@@ -255,29 +260,29 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
         
         System.out.println("Melodia are  " + songLength + " secunde");
         
-        trackPlayingTime = 0;
-        isSeekerTimerRunning = true;
+        mTrackPlayingTime = 0;
+        mIsSeekerTimerRunning = true;
         
         java.util.TimerTask task = new TimerTask() 
         {
             @Override
             public void run() 
             {
-                ++trackPlayingTime;
+                ++mTrackPlayingTime;
                 
                 //System.out.println("TimerTask::run() temp = " + trackPlayingTime);
                 
-                if (trackPlayingTime == songLength)
+                if (mTrackPlayingTime == songLength)
                 {
-                    seeker.cancel();
-                    isSeekerTimerRunning = false;
-                    trackPlayingTime = 0;
+                    mSeekerTimer.cancel();
+                    mIsSeekerTimerRunning = false;
+                    mTrackPlayingTime = 0;
                 }
-                UpdateBar(trackPlayingTime);
+                UpdateBar(mTrackPlayingTime);
             }
         };
         
-        seeker.schedule(task, 0, 1000);
+        mSeekerTimer.schedule(task, 0, 1000);
     }    
     
     public void UpdateBar(int newVaIue)
@@ -292,26 +297,18 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
             }
         });
     }
-       
-    public void LoadPlaylistTracks()
+    
+    private void SavePlaylistTracks()
     {
         try 
         {
-            FileReader file = new FileReader("data/Playlist.txt");
-            BufferedReader br = new BufferedReader(file);
-            String line = br.readLine();
-            while (line != null)
-            {
-                String[] trackinfo = line.split(",");
-                if(trackinfo.length >= 4)
-                {
-                    Track newtrack = new Track(trackinfo[1], trackinfo[2],
-                                                    GetIntegerValueOrZero(trackinfo[3]), 
-                                                    trackinfo[0]);
-                    modelTracks.addTrack(newtrack);
-                }
-                line = br.readLine();
-            }
+            OutputStream file = new FileOutputStream("data/Playlist.ply");
+            OutputStream buffer = new BufferedOutputStream(file);
+            ObjectOutput output = new ObjectOutputStream (buffer); 
+            output.writeObject(mTracksModel);
+            output.close();
+            buffer.close();
+            file.close();
         }
         catch (FileNotFoundException ex) 
         {
@@ -320,7 +317,38 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
         catch (IOException ex) 
         {
             ex.printStackTrace();
-        }        
+        }  
+    }
+       
+    public void LoadPlaylistTracks()
+    {
+        try 
+        {
+            InputStream file = new FileInputStream("data/Playlist.ply");
+            InputStream buffer = new BufferedInputStream(file);
+            ObjectInput input = new ObjectInputStream (buffer); 
+            mTracksModel = (TracksModel)input.readObject();
+            input.close();
+            buffer.close();
+            file.close();
+        }
+        catch (FileNotFoundException ex) 
+        {
+            ex.printStackTrace();
+        } 
+        catch (IOException ex) 
+        {
+            ex.printStackTrace();
+        }  
+        catch (ClassNotFoundException ex) 
+        {
+            ex.printStackTrace();
+        }
+        
+        if(mTracksModel == null)
+        {
+            mTracksModel = new TracksModel();
+        }  
     }
     
     private int GetIntegerValueOrZero(String value)
@@ -337,25 +365,9 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
         return intValue;
     }
     
-    public void SavePlaylistTracks()
-    {
-        try {
-            BufferedWriter bfw = new BufferedWriter(new FileWriter("data/Playlist.txt"));
-            for (int i=0 ; i<Playlist.getModel().getSize() ; i++)
-            {
-                Object item = Playlist.getModel().getElementAt(i);
-                System.out.println("Melodia este " + item);
-            }
-        } 
-        catch (IOException ex)
-        {
-            ex.printStackTrace();
-        }
-    }
-    
     private void BackgroundMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_BackgroundMousePressed
-        xMouse = evt.getX();
-        yMouse = evt.getY();
+        mDragStartX = evt.getX();
+        mDragStartY = evt.getY();
     }//GEN-LAST:event_BackgroundMousePressed
     
     private Mp3File GetMP3File(String filePath)
@@ -393,9 +405,9 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
         try
         {
             BufferedWriter bfw = new BufferedWriter(new FileWriter("data/Playlist.txt", true));
-            tracklistInfo = track.getSongPath() + "," + track.getSongName() + 
+            mTrackListInfo = track.getSongPath() + "," + track.getSongName() + 
                     "," + track.getArtist() + "," + track.getSongLength();
-            bfw.write(tracklistInfo);
+            bfw.write(mTrackListInfo);
             bfw.write("\t");
             bfw.newLine();
             bfw.close();
@@ -420,8 +432,8 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
         
         UpdateDisplay();
         
-        MC.Stop();
-        MC.Play(songFilePath);
+        mTrackPlayer.Stop();
+        mTrackPlayer.Play(songFilePath);
     }
       
     
@@ -433,7 +445,7 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
     }//GEN-LAST:event_PlaylistMouseClicked
 
     private void PlayMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_PlayMouseClicked
-        if(modelTracks.getSize() > 0)
+        if(mTracksModel.getSize() > 0)
         {
             int pozitie = Playlist.getSelectedIndex();
             if(pozitie < 0)
@@ -446,21 +458,22 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
     }//GEN-LAST:event_PlayMouseClicked
 
     private void exitLabelMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_exitLabelMouseClicked
+        SavePlaylistTracks();
         System.exit(0);
     }//GEN-LAST:event_exitLabelMouseClicked
 
     private void StopMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_StopMouseClicked
-        MC.Stop();
+        mTrackPlayer.Stop();
     }//GEN-LAST:event_StopMouseClicked
 
     private void PauseMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_PauseMouseClicked
-        MC.Pause();
+        mTrackPlayer.Pause();
     }//GEN-LAST:event_PauseMouseClicked
 
     private void SelectFileMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_SelectFileMouseClicked
         FileNameExtensionFilter filter = new FileNameExtensionFilter("MP3 files", "mp3", "mpeg3");
         
-        JFileChooser chooser = new JFileChooser("E:\\Other music");
+        JFileChooser chooser = new JFileChooser("C:\\Users\\Milea\\Downloads");
         chooser.addChoosableFileFilter(filter);
         
         int returnValue = chooser.showOpenDialog(null);
@@ -477,10 +490,10 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
                 int songLength = (int)mp3File.getLengthInSeconds();
                 
                 Track newTrack = new Track(songTitle, artist, songLength, selectedMusicFilePath);
-                modelTracks.addTrack(newTrack);
-                SaveTrackToPlaylistFile(newTrack);
+                mTracksModel.addTrack(newTrack);
+                //SaveTrackToPlaylistFile(newTrack);
                 
-                final int lastTrackIndex = modelTracks.getSize() - 1;
+                final int lastTrackIndex = mTracksModel.getSize() - 1;
                 Playlist.setSelectedIndex(lastTrackIndex);
                 PlaySelectedSong();
             }
@@ -500,7 +513,7 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
         int index = Playlist.getSelectedIndex();
         if( index >= 0 )
         {
-            modelTracks.removeTrack(index);
+            mTracksModel.removeTrack(index);
         }
     }
     
@@ -516,7 +529,7 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
         int selectedTrack = Playlist.getSelectedIndex();
         if(selectedTrack >= 0)
         {
-            mPlayingTrack = (Track)modelTracks.getElementAt(selectedTrack);
+            mPlayingTrack = (Track)mTracksModel.getElementAt(selectedTrack);
         }
     }
     
