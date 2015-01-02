@@ -32,6 +32,56 @@ public class TrackPlayer
         }
     }
     
+    public void StopJump()
+    {
+        if(mPlayer != null)
+        {
+            mPlayer.close();
+        }
+    }
+    
+    public void Jump(long valueSkipped) 
+    {
+        try 
+        {
+            mFileInput = new FileInputStream(mFileLocation); 
+            mBufferedInput = new BufferedInputStream(mFileInput);
+            
+            mPlayer = new Player(mBufferedInput);
+            mTotalSongLength = mFileInput.available();
+            mFileInput.skip(valueSkipped);
+         } 
+        catch (FileNotFoundException | JavaLayerException ex) 
+        {
+            ex.printStackTrace();
+        } 
+        catch (IOException ex) 
+        {
+            ex.printStackTrace();
+        }
+        
+        new Thread()
+        {
+            public void run()
+            {
+                try 
+                {
+                    mPlayer.play();
+                } 
+                catch (JavaLayerException ex) 
+                {
+                    ex.printStackTrace();
+                }
+            }
+        }.start();
+        
+    }
+    
+    public long getSongBytes()
+    {
+        return mTotalSongLength;
+    }
+    
     public void Play(String path) 
     {
         try 

@@ -12,13 +12,10 @@ import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,6 +51,10 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
     private int mMinutes;
     private int mSeconds;
     private int mTrackPlayingTime = 0;
+    int mSeekBaVal = 0; 
+    
+    
+    private String mFileMusicPath = "E:\\Other music";
     
     private int mPlayingTrackIndex = -1;
     
@@ -130,6 +131,11 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
 
         SeekBar.setForeground(new java.awt.Color(255, 156, 0));
         SeekBar.setMaximum(0);
+        SeekBar.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                SeekBarMouseClicked(evt);
+            }
+        });
         getContentPane().add(SeekBar, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 320, 370, 30));
 
         exitLabel.setText("Exit");
@@ -254,7 +260,7 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
         }
         mSeekerTimer = new Timer();
         
-        int songLength = mPlayingTrack.getSongLength();
+        final int songLength = mPlayingTrack.getSongLength();
         SeekBar.setMinimum(0);
         SeekBar.setMaximum(songLength);
         
@@ -285,7 +291,7 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
         mSeekerTimer.schedule(task, 0, 1000);
     }    
     
-    public void UpdateBar(int newVaIue)
+    public void UpdateBar(final int newVaIue)
     {
         SwingUtilities.invokeLater(new Runnable()
         {
@@ -464,8 +470,25 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
 
     private void StopMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_StopMouseClicked
         mTrackPlayer.Stop();
+        ResetDisplay();
+        StopTimer();
+        ResetSeekBar();
     }//GEN-LAST:event_StopMouseClicked
-
+    private void ResetSeekBar()
+    {
+        UpdateBar(0);
+    }
+    
+    private void StopTimer()
+    {
+        mSeekerTimer.cancel();
+    }
+    
+    private void ResetDisplay()
+    {
+        Display.setText("");
+    }
+    
     private void PauseMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_PauseMouseClicked
         mTrackPlayer.Pause();
     }//GEN-LAST:event_PauseMouseClicked
@@ -473,7 +496,7 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
     private void SelectFileMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_SelectFileMouseClicked
         FileNameExtensionFilter filter = new FileNameExtensionFilter("MP3 files", "mp3", "mpeg3");
         
-        JFileChooser chooser = new JFileChooser("C:\\Users\\Milea\\Downloads");
+        JFileChooser chooser = new JFileChooser(mFileMusicPath);
         chooser.addChoosableFileFilter(filter);
         
         int returnValue = chooser.showOpenDialog(null);
@@ -501,12 +524,38 @@ public final class MP3PlayerGUI extends javax.swing.JDialog
     }//GEN-LAST:event_SelectFileMouseClicked
 
     private void PlaylistKeyReleased(java.awt.event.KeyEvent evt) {//GEN-FIRST:event_PlaylistKeyReleased
-        // TODO add your handling code here:
+ 
         if (evt.getKeyCode() == KeyEvent.VK_DELETE)
         {
             RemoveTrackFromPlaylist();
         }
     }//GEN-LAST:event_PlaylistKeyReleased
+
+    private void SeekBarMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_SeekBarMouseClicked
+
+        int v = SeekBar.getValue();
+
+       //Retrieves the mouse position relative to the component origin.
+        int mouseX = evt.getX();
+
+       //Computes how far along the mouse is relative to the component width then multiply it by the progress bar's maximum value.
+        mSeekBaVal = (int)Math.round(((double)mouseX / (double)SeekBar.getWidth()) * SeekBar.getMaximum());
+        
+        
+        SeekBarJump();
+    }//GEN-LAST:event_SeekBarMouseClicked
+    
+    private void SeekBarJump()
+    {
+        mTrackPlayingTime = mSeekBaVal;
+        long totalSongBytes = mTrackPlayer.getSongBytes();
+        long skipSongBytes = (totalSongBytes*mTrackPlayingTime)/mPlayingTrack.getSongLength();
+        //long valutSkipped = totalSongBytes - skipSongBytes;
+        System.out.println("Valoarea sarita este skipSongBytes:" + skipSongBytes);
+        mTrackPlayer.StopJump();
+        mTrackPlayer.Jump(skipSongBytes);
+        SeekBar.setValue(mSeekBaVal);
+    }
     
     private void RemoveTrackFromPlaylist()
     {
